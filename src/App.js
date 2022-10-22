@@ -2,7 +2,7 @@ import React from "react";
 import { Page } from "@geist-ui/react";
 import { Trace } from "./Trace";
 
-const App = (props) => {
+const App = () => {
   return (
     <Page>
       <Page.Header>
