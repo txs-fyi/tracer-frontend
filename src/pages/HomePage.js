@@ -1,8 +1,7 @@
 import React from "react";
 import { Page } from "@geist-ui/react";
-import { Trace } from "./Trace";
 
-const App = () => {
+export const HomePage = () => {
   return (
     <Page>
       <Page.Header>
@@ -10,7 +9,6 @@ const App = () => {
       </Page.Header>
       <Page.Content>
         <h2>Hello, Everyone.</h2>
-        <Trace />
       </Page.Content>
       <Page.Footer>
         <h2>Footer</h2>
@@ -18,4 +16,3 @@ const App = () => {
     </Page>
   );
 };
-export default App;

@@ -1,16 +1,28 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
-import App from "./App";
+import { HomePage } from "./pages/HomePage";
+import { TracePage } from "./pages/TracePage";
 import reportWebVitals from "./reportWebVitals";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { GeistProvider, CssBaseline } from "@geist-ui/core";
+
+import "@fontsource/roboto/300.css";
+import "@fontsource/roboto/400.css";
+import "@fontsource/roboto/500.css";
+import "@fontsource/roboto/700.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <GeistProvider themeType="dark">
       <CssBaseline />
-      <App />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="tx/:txhash" element={<TracePage />} />
+        </Routes>
+      </BrowserRouter>
     </GeistProvider>
   </React.StrictMode>
 );
