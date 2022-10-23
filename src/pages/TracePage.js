@@ -6,7 +6,7 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { ABIS } from "../common/abis";
 
 import "./treeList.css";
-import { Text } from "@geist-ui/react";
+import { Checkbox, Text } from "@geist-ui/react";
 import { sleep, truncate } from "../common/utils";
 
 // Default decoder with common abis
@@ -78,7 +78,8 @@ function getUniqueUnknownAddresses(knownAddresses, stackTrace) {
   ).flat();
 }
 
-function TraceViewer(stackTrace) {
+function TraceViewer(stackTrace, verbose = false) {
+  console.log('verbose', verbose)
   const {
     type,
     to,
@@ -91,6 +92,15 @@ function TraceViewer(stackTrace) {
     output,
     calls,
     error,
+
+    // sstore
+    slot,
+    before,
+    after,
+
+    // topics
+    topics,
+    data,
   } = stackTrace;
 
   const prettyValueStr =
@@ -99,14 +109,6 @@ function TraceViewer(stackTrace) {
       : `[ETH:${truncate(ethers.utils.formatEther(prettyValue), 6)}]`;
 
   const prettyGas = parseInt(gas, 16);
-
-  /*
-    #BB86FC - CALL
-    #3700B3 - DELEGATECALL
-    #03DAC6 - STATICALL
-    #018786 - CREATE
-    #CF6679 - REVERT
-  */
 
   // White by default
   let colorType = "#FFF";
@@ -118,14 +120,28 @@ function TraceViewer(stackTrace) {
     colorType = "#03DAC6";
   } else if (type === "CREATE" || type === "CREATE2") {
     colorType = "#018786";
+  } else if (type === "SSTORE" || type === "SLOAD") {
+    colorType = "#FAA356";
+  } else if (type.startsWith("LOG")) {
+    colorType = "#A2D2FB";
   }
 
-  if (type === "SSTORE" || type === "SLOAD" || type.startsWith("LOG")) {
+  if (type === "SSTORE") {
+    if (verbose === false) return <></>;
+
     return (
       <li key={`${JSON.stringify(stackTrace)}`}>
         <span style={{ color: colorType }}>[{type}]</span>
-        {prettyValueStr}
-        {prettyAddress || to}::{prettyInput || input}
+        {`${slot}::${before} -> ${after}`}
+      </li>
+    );
+  }
+
+  if (type.startsWith("LOG")) {
+    return (
+      <li key={`${JSON.stringify(stackTrace)}`}>
+        <span style={{ color: colorType }}>[{type}]</span>
+        {`${topics.join(",")}::${data}`}
       </li>
     );
   }
@@ -134,12 +150,20 @@ function TraceViewer(stackTrace) {
     <li key={`${type}-${isNaN(prettyGas) ? "0" : prettyGas.toString()}`}>
       <details open>
         <summary>
-          <span style={{ color: colorType }}>[{type}]</span>
+          <span
+            onClick={(e) => {
+              e.preventDefault();
+              // alert('hi')
+            }}
+            style={{ color: colorType }}
+          >
+            [{type}]
+          </span>
           {prettyValueStr}
           {prettyAddress || to}::{prettyInput || input}
         </summary>
         <ul>
-          {(calls || []).length > 0 && calls.map((x) => TraceViewer(x))}
+          {(calls || []).length > 0 && calls.map((x) => TraceViewer(x, verbose))}
           {output !== undefined && (
             <li key={`return-${parseInt(gas, 16).toString()}`}>
               return [{prettyOutput || output}]
@@ -170,7 +194,9 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
   let prettyAddress = null;
   let prettyOutput = null;
   let prettyValue = null;
+  // let prettyLog = null
 
+  // Description
   try {
     const txDescription = decoder.parseTransaction({ data: stackTrace.input });
     const txParams = txDescription.functionFragment.inputs
@@ -239,6 +265,7 @@ export const TracePage = () => {
   const [invalidTxHash, setInvalidTxHash] = useState(false);
   const [executionTrace, setExecutionTrace] = useState(null);
   const [hasUpdatedLocalStorage, setHasUpdatedLocalStorage] = useState(false);
+  const [displayVerbose, setDisplayVerbose] = useState(false);
 
   const getTraces = useCallback(async () => {
     const traceData = await fetch(
@@ -416,16 +443,26 @@ export const TracePage = () => {
 
   return (
     <GenericPage>
+      <Text h4>
+        Execution Trace&nbsp;&nbsp;
+        <Checkbox
+          checked={displayVerbose}
+          onChange={(e) => {
+            setDisplayVerbose(e.target.checked)}
+          }
+        >
+          Verbose
+        </Checkbox>
+      </Text>
       {executionTrace === null && invalidTxHash && (
         <Text h2>Invalid txhash</Text>
       )}
-      <Text h4>Execution Trace</Text>
       {executionTrace !== null && (
         <ul className="tree">
           <li key="root">
             <details open>
               <summary>[Sender]{executionTrace.from}</summary>
-              <ul>{TraceViewer(executionTrace)}</ul>
+              <ul>{TraceViewer(executionTrace, displayVerbose)}</ul>
             </details>
           </li>
         </ul>
