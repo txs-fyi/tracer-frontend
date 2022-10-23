@@ -1,6 +1,6 @@
 .tree {
   margin-left: 0px;
-  font-family: "Courier New", Courier, monospace;
+  font-family: "Courier New", Courier, monospace !important;
   font-weight: bold;
   font-size: 14px;
   white-space: nowrap;
