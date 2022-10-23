@@ -3,6 +3,7 @@
   font-family: "Courier New", Courier, monospace;
   font-weight: bold;
   font-size: 14px;
+  white-space: nowrap;
   --spacing: 1.5rem;
   --radius: 7px;
 }
