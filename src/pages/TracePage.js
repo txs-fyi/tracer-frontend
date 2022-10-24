@@ -599,7 +599,6 @@ export const TracePage = () => {
         modalTitle += "::" + modalData.input.slice(0, 10);
       }
     }
-    console.log(modalData);
   }
 
   return (
