@@ -2,11 +2,11 @@ import { ethers } from "ethers";
 import { useEffect, useState, useCallback } from "react";
 import { GenericPage } from "./Page";
 import { useParams } from "react-router-dom";
-import { useLocalStorage } from "../hooks/useLocalStorage";
+// import { useLocalStorage } from "../hooks/useLocalStorage";
 import { ABIS } from "../common/abis";
 
 import { Checkbox, Modal, Text, Code } from "@geist-ui/react";
-import { sleep, truncate } from "../common/utils";
+import { shortAddress, sleep, truncate } from "../common/utils";
 
 import "./treeList.css";
 
@@ -140,7 +140,16 @@ function TraceViewer({
 
     return (
       <li>
-        <span style={{ color: colorType }}>[{type}]</span>
+        <span
+          onClick={(e) => {
+            e.preventDefault();
+            setModalOpened(!modalOpened);
+            setModalData(executionTrace);
+          }}
+          style={{ color: colorType, cursor: "pointer" }}
+        >
+          [{type}]
+        </span>
         {`${slot}::${before} -> ${after}`}
       </li>
     );
@@ -149,7 +158,16 @@ function TraceViewer({
   if (type.startsWith("LOG")) {
     return (
       <li>
-        <span style={{ color: colorType }}>[LOG]</span>
+        <span
+          onClick={(e) => {
+            e.preventDefault();
+            setModalOpened(!modalOpened);
+            setModalData(executionTrace);
+          }}
+          style={{ color: colorType, cursor: "pointer" }}
+        >
+          [LOG]
+        </span>
         {prettyLog || `[${topics[0]}](${topics.slice(1).join(",")})::${data}`}
       </li>
     );
@@ -339,14 +357,8 @@ export const TracePage = () => {
 
   // Stuff to decode the execution trace
   const [ifaceDecoder, setIFaceDecoder] = useState(null);
-  const [knownContractAddresses, setKnownContractAddresses] = useLocalStorage(
-    "contractAddresses",
-    {}
-  );
-  const [knownSignatures, setKnownSignatures] = useLocalStorage(
-    "signatures",
-    []
-  );
+  const [knownContractAddresses, setKnownContractAddresses] = useState({});
+  const [knownSignatures, setKnownSignatures] = useState([]);
   const [invalidTxHash, setInvalidTxHash] = useState(false);
   const [executionTrace, setExecutionTrace] = useState(null);
   const [hasUpdatedLocalStorage, setHasUpdatedLocalStorage] = useState(false);
@@ -546,22 +558,20 @@ export const TracePage = () => {
   // Modal data dump
   // very bad but whatever
   let modalTitle = "";
-  let modalInput = "";
-  let modalOutput = "";
   if (modalData) {
-    // Modal Title
-    if (modalData.prettyAddress) {
-      modalTitle = modalData.prettyAddress;
-    } else {
-      modalTitle = modalData.to.slice(0, 6) + "..." + modalData.to.slice(-4);
+    if (modalData.type.includes("CALL")) {
+      // Modal Title
+      if (modalData.prettyAddress) {
+        modalTitle = modalData.prettyAddress;
+      } else {
+        modalTitle = shortAddress(modalData.to);
+      }
+      if (modalData.prettyInput) {
+        modalTitle += "::" + modalData.prettyInput.split("(")[0];
+      } else {
+        modalTitle += "::" + modalData.input.slice(0, 10);
+      }
     }
-    if (modalData.prettyInput) {
-      modalTitle += "." + modalData.prettyInput.split("(")[0];
-    } else {
-      modalTitle += "::" + modalData.input.slice(0, 10);
-    }
-
-    console.log("modalData", modalData);
   }
 
   return (
@@ -579,7 +589,61 @@ export const TracePage = () => {
               </a>
             </Text>
           )}
-          {modalData && modalData.input && (
+          {modalData &&
+            (modalData.type === "CREATE" || modalData.type === "CREATE2") && (
+              <>
+                <Text font="10px">
+                  {`Created Contract: `}
+                  <a href={`https://etherscan.io/address/${modalData.to}`}>
+                    {modalData.to}
+                  </a>
+                </Text>
+              </>
+            )}
+          {modalData &&
+            modalData.type.includes("LOG") &&
+            modalData.topics &&
+            modalData.data && (
+              <>
+                <Text type="secondary" font="12px">
+                  Event emitted from{" "}
+                  <a href={`https://etherscan.io/address/${modalData.address}`}>
+                    {modalData.address}
+                  </a>
+                </Text>
+                <Text>Topics</Text>
+                <Code block my={0}>
+                  {modalData.topics.join("\n")}
+                </Code>
+                <Text>Data</Text>
+                <Code block my={0}>
+                  {modalData.data || "0x"}
+                </Code>
+                {modalData.logFragment && (
+                  <>
+                    <Text>Decoded Log: {modalData.logFragment.name}</Text>
+                    <Code block>
+                      {modalData.logFragment.args
+                        .map((x, idx) => {
+                          let key = null;
+                          try {
+                            key =
+                              modalData.logFragment.eventFragment.inputs[idx]
+                                .name;
+                          } catch (e) {}
+                          const value = modalData.logFragment.args[idx];
+
+                          return key !== undefined && key !== null && key !== ""
+                            ? `${key}: ${value.toString()}`
+                            : value.toString();
+                        })
+                        .join("\n")}
+                    </Code>
+                  </>
+                )}
+              </>
+            )}
+          {modalData && modalData.type.includes("CALL") && modalData.input && (
             <>
               <Text>Input</Text>
               <Code block my={0}>

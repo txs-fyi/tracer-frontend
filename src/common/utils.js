@@ -10,4 +10,8 @@ function truncate(str, maxDecimalDigits) {
   return str;
 }
 
-export { truncate, sleep };
+function shortAddress(addr) {
+  return addr.slice(0, 6) + "..." + addr.slice(-4);
+}
+
+export { truncate, sleep, shortAddress };
