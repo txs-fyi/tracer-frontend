@@ -255,7 +255,6 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
         ")";
     }
 
-    console.log("ok here", stackTrace.output);
     const resultDescription = decoder.decodeFunctionResult(
       txDescription.name,
       stackTrace.output
@@ -276,12 +275,6 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
     } else {
       prettyOutput = "(" + resultDescription.map((x) => x.toString()) + ")";
     }
-    console.log(
-      "resultDescription",
-      resultDescription,
-      Object.keys(resultDescription)
-    );
-    console.log("resultParamInfo", resultParamInfo);
   } catch (e) {}
 
   try {
@@ -382,12 +375,6 @@ export const TracePage = () => {
       // Save to localStorage
       const newKnownSignatures = [...knownSignatures, ...newSignatures];
 
-      // Set a new decoder
-      const newIFaceDecoder = new ethers.utils.Interface([
-        ...ifaceDecoder.format(),
-        ...newKnownSignatures,
-      ]);
-
       // Attempt to get contract address name, rate limited to 5 every 1 second
       const unknownAddresses = getUniqueUnknownAddresses(
         knownContractAddresses,
@@ -416,17 +403,36 @@ export const TracePage = () => {
           await sleep(1010);
         }
 
-        // Exrtract out source code name (very hacky yes)
-        const addressesNames = addressesSourceCode.map((x) => {
-          let name = null;
-          try {
-            name = x.result[0]["ContractName"];
-          } catch (e) {}
-          if (name === "") {
-            name = null;
-          }
-          return name;
-        });
+        // Extract out source code name (very hacky yes)
+        const addressesNames = addressesSourceCode
+          .map((x) => {
+            let name = null;
+            try {
+              name = x.result[0]["ContractName"];
+            } catch (e) {}
+            if (name === "") {
+              name = null;
+            }
+            return name;
+          })
+          .filter((x) => x !== null);
+
+        // Extract out ABI if they exist
+        const abisFromEtherscan = addressesSourceCode
+          .map((x) => {
+            let abi = null;
+            try {
+              abi = JSON.parse(x.result[0]["ABI"]);
+            } catch (e) {
+              abi = null;
+            }
+            if (abi === "") {
+              abi = null;
+            }
+            return abi;
+          })
+          .filter((x) => x !== null)
+          .flat();
 
         // New key value
         const addressesWithNames = unknownAddresses
@@ -447,6 +453,12 @@ export const TracePage = () => {
           ...addressesWithNames,
         };
 
+        // Set a new decoder
+        const newIFaceDecoder = new ethers.utils.Interface([
+          ...ifaceDecoder.format(),
+          ...newKnownSignatures,
+          ...new ethers.utils.Interface(abisFromEtherscan).format(),
+        ]);
         // Re-format trace data with new data
         const newStackTrace = formatExecutionTrace(
           newIFaceDecoder,
