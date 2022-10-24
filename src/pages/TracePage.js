@@ -79,15 +79,18 @@ function getUniqueUnknownAddresses(knownAddresses, stackTrace) {
 }
 
 function TraceViewer(stackTrace, verbose = false) {
-  console.log('verbose', verbose)
   const {
-    type,
-    to,
-    gas,
+    // Pretty value
     prettyValue,
     prettyAddress,
     prettyInput,
     prettyOutput,
+    prettyLog,
+
+    // Call
+    type,
+    to,
+    gas,
     input,
     output,
     calls,
@@ -115,7 +118,7 @@ function TraceViewer(stackTrace, verbose = false) {
   if (type === "CALL") {
     colorType = "#BB86FC";
   } else if (type === "DELEGATECALL") {
-    colorType = "#3700B3";
+    colorType = "#8A80FF";
   } else if (type === "STATICCALL") {
     colorType = "#03DAC6";
   } else if (type === "CREATE" || type === "CREATE2") {
@@ -141,7 +144,7 @@ function TraceViewer(stackTrace, verbose = false) {
     return (
       <li key={`${JSON.stringify(stackTrace)}`}>
         <span style={{ color: colorType }}>[{type}]</span>
-        {`${topics.join(",")}::${data}`}
+        {prettyLog || `[${topics[0]}](${topics.slice(1).join(",")})::${data}`}
       </li>
     );
   }
@@ -153,7 +156,6 @@ function TraceViewer(stackTrace, verbose = false) {
           <span
             onClick={(e) => {
               e.preventDefault();
-              // alert('hi')
             }}
             style={{ color: colorType }}
           >
@@ -163,10 +165,11 @@ function TraceViewer(stackTrace, verbose = false) {
           {prettyAddress || to}::{prettyInput || input}
         </summary>
         <ul>
-          {(calls || []).length > 0 && calls.map((x) => TraceViewer(x, verbose))}
+          {(calls || []).length > 0 &&
+            calls.map((x) => TraceViewer(x, verbose))}
           {output !== undefined && (
             <li key={`return-${parseInt(gas, 16).toString()}`}>
-              return [{prettyOutput || output}]
+              return {prettyOutput || output}
             </li>
           )}
           {
@@ -194,9 +197,39 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
   let prettyAddress = null;
   let prettyOutput = null;
   let prettyValue = null;
-  // let prettyLog = null
+  let prettyLog = null;
 
-  // Description
+  // Logs
+  try {
+    if (stackTrace.topics) {
+      const logDescription = decoder.parseLog({
+        topics: stackTrace.topics,
+        data: stackTrace.data,
+      });
+
+      const logParams = logDescription.eventFragment.inputs
+        .map((x) => x.name)
+        .filter((x) => x !== null);
+
+      // Sometimes we have the logs
+      if (logParams.length > 0) {
+        const logArgs = logParams.map((x) => logDescription.args[x]);
+        prettyLog =
+          logDescription.name +
+          "(" +
+          logArgs.map((x, idx) => logParams[idx] + "=" + logArgs[idx]) +
+          ")";
+      } else {
+        prettyLog =
+          logDescription.name +
+          "(" +
+          logParams.args.map((x) => x.toString()) +
+          ")";
+      }
+    }
+  } catch (e) {}
+
+  // Description and result
   try {
     const txDescription = decoder.parseTransaction({ data: stackTrace.input });
     const txParams = txDescription.functionFragment.inputs
@@ -211,7 +244,8 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
       prettyInput =
         txDescription.name +
         "(" +
-        txArgs.map((x, idx) => txParams[idx] + "=" + txArgs[idx] + ")");
+        txArgs.map((x, idx) => txParams[idx] + "=" + txArgs[idx]) +
+        ")";
     } else {
       // Otherwise no params
       prettyInput =
@@ -220,6 +254,34 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
         txDescription.args.map((x) => x.toString()) +
         ")";
     }
+
+    console.log("ok here", stackTrace.output);
+    const resultDescription = decoder.decodeFunctionResult(
+      txDescription.name,
+      stackTrace.output
+    );
+    const resultParamInfo = decoder
+      .getFunction(txDescription.name)
+      .outputs.map((x) => x.name)
+      .filter((x) => x !== null);
+
+    // We have description!
+    if (resultParamInfo.length > 0) {
+      prettyOutput =
+        "(" +
+        resultParamInfo.map(
+          (x, idx) => resultParamInfo[idx] + "=" + resultDescription[idx]
+        ) +
+        ")";
+    } else {
+      prettyOutput = "(" + resultDescription.map((x) => x.toString()) + ")";
+    }
+    console.log(
+      "resultDescription",
+      resultDescription,
+      Object.keys(resultDescription)
+    );
+    console.log("resultParamInfo", resultParamInfo);
   } catch (e) {}
 
   try {
@@ -244,6 +306,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
     prettyAddress,
     prettyInput,
     prettyOutput,
+    prettyLog,
     calls: (stackTrace.calls || []).map((x) =>
       formatExecutionTrace(decoder, knownContractAddresses, x)
     ),
@@ -448,8 +511,8 @@ export const TracePage = () => {
         <Checkbox
           checked={displayVerbose}
           onChange={(e) => {
-            setDisplayVerbose(e.target.checked)}
-          }
+            setDisplayVerbose(e.target.checked);
+          }}
         >
           Verbose
         </Checkbox>
