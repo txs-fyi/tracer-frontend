@@ -93,6 +93,7 @@ function TraceViewer({
     prettyInput,
     prettyOutput,
     prettyLog,
+    prettyError,
 
     // Call
     type,
@@ -204,14 +205,17 @@ function TraceViewer({
                 displayVerbose,
               })
             )}
-          {output !== undefined && <li>return {prettyOutput || output}</li>}
+          {output !== undefined && error === undefined && (
+            <li>return {prettyOutput || output}</li>
+          )}
           {
             // Sending ETH doesn't return value it seems
             output === undefined && error === undefined && <li>return [0x]</li>
           }
           {error !== undefined && (
             <li>
-              <span style={{ color: "#EB367F" }}>[REVERTED]</span> [{error}]
+              <span style={{ color: "#EB367F" }}>[REVERTED]</span> [
+              {prettyError || error}]
             </li>
           )}
         </ul>
@@ -227,6 +231,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
   let prettyOutput = null;
   let prettyValue = null;
   let prettyLog = null;
+  let prettyError = null;
 
   let logFragment = null;
   let funcFragment = null;
@@ -315,6 +320,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
     funcFragment = txDescription;
   } catch (e) {}
 
+  // Address -> Contract names
   try {
     // If theres an address inside
     if (!!knownContractAddresses[executionTrace.to.toLowerCase()]) {
@@ -331,6 +337,19 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
     } catch (e) {}
   }
 
+  // Error string -> readable
+  try {
+    if (
+      executionTrace.error &&
+      executionTrace.output.toLowerCase().startsWith("0x08c379a")
+    ) {
+      prettyError = ethers.utils.defaultAbiCoder.decode(
+        ["string"],
+        "0x" + executionTrace.output.slice(10)
+      )[0];
+    }
+  } catch (e) {}
+
   return {
     ...executionTrace,
     prettyValue,
@@ -338,6 +357,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
     prettyInput,
     prettyOutput,
     prettyLog,
+    prettyError,
     logFragment,
     funcFragment,
     calls: (executionTrace.calls || []).map((x) =>
