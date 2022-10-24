@@ -26,7 +26,7 @@ const stringify = function (obj) {
   }
 
   const type = typeof obj;
-  if (type === "string") return "'" + obj + "'";
+  if (type === "string") return obj;
   if (type === "boolean" || type === "number") return obj;
   if (type === "function") return obj.toString();
   const ret = [];

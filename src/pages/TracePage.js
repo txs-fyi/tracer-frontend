@@ -296,6 +296,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
         txDescription.args.map((x) => stringify(x)) +
         ")";
     }
+    funcFragment = txDescription;
 
     const resultDescription = decoder.decodeFunctionResult(
       txDescription.name,
@@ -319,7 +320,6 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
       prettyOutput = "(" + resultDescription.map((x) => stringify(x)) + ")";
     }
 
-    funcFragment = txDescription;
     resFragment = {
       result: resultDescription,
       info: resultParamInfo,
@@ -599,6 +599,7 @@ export const TracePage = () => {
         modalTitle += "::" + modalData.input.slice(0, 10);
       }
     }
+    console.log(modalData);
   }
 
   return (
