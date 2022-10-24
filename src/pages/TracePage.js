@@ -5,16 +5,17 @@ import { useParams } from "react-router-dom";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { ABIS } from "../common/abis";
 
-import "./treeList.css";
-import { Checkbox, Text } from "@geist-ui/react";
+import { Checkbox, Modal, Text } from "@geist-ui/react";
 import { sleep, truncate } from "../common/utils";
+
+import "./treeList.css";
 
 // Default decoder with common abis
 const defaultDecoder = new ethers.utils.Interface(ABIS);
 
 // Extract out all function signatures (4bytes)
-function getUnknownFunctionSignatures(decoder, stackTrace) {
-  const { input, calls } = stackTrace;
+function getUnknownFunctionSignatures(decoder, executionTrace) {
+  const { input, calls } = executionTrace;
   const innerCalls = calls || [];
 
   // not a call, but probably a LOG, SSTORE opcode
@@ -39,16 +40,16 @@ function getUnknownFunctionSignatures(decoder, stackTrace) {
 }
 
 // Only gets unique function signatures
-function getUniqueUnkownFunctionSignatures(decoder, stackTrace) {
+function getUniqueUnkownFunctionSignatures(decoder, executionTrace) {
   return Array.from(
-    new Set(getUnknownFunctionSignatures(decoder, stackTrace))
+    new Set(getUnknownFunctionSignatures(decoder, executionTrace))
   ).flat();
 }
 
 // Extract out all the addresses from the decoder
-function getUnkownAddresses(knownAddresses, stackTrace) {
+function getUnkownAddresses(knownAddresses, executionTrace) {
   // Convert to lowercase
-  const { from, to, calls } = stackTrace;
+  const { from, to, calls } = executionTrace;
 
   let unknowns = [];
 
@@ -72,13 +73,19 @@ function getUnkownAddresses(knownAddresses, stackTrace) {
   ];
 }
 
-function getUniqueUnknownAddresses(knownAddresses, stackTrace) {
+function getUniqueUnknownAddresses(knownAddresses, executionTrace) {
   return Array.from(
-    new Set(getUnkownAddresses(knownAddresses, stackTrace))
+    new Set(getUnkownAddresses(knownAddresses, executionTrace))
   ).flat();
 }
 
-function TraceViewer(stackTrace, verbose = false) {
+function TraceViewer({
+  setModalData,
+  setModalOpened,
+  modalOpened,
+  executionTrace,
+  displayVerbose,
+}) {
   const {
     // Pretty value
     prettyValue,
@@ -90,7 +97,7 @@ function TraceViewer(stackTrace, verbose = false) {
     // Call
     type,
     to,
-    gas,
+    // gas,
     input,
     output,
     calls,
@@ -104,36 +111,35 @@ function TraceViewer(stackTrace, verbose = false) {
     // topics
     topics,
     data,
-  } = stackTrace;
+  } = executionTrace;
 
   const prettyValueStr =
     (prettyValue || null) === null
       ? ""
       : `[ETH:${truncate(ethers.utils.formatEther(prettyValue), 6)}]`;
 
-  const prettyGas = parseInt(gas, 16);
+  // const prettyGas = parseInt(gas, 16);
 
-  // White by default
-  let colorType = "#FFF";
-  if (type === "CALL") {
-    colorType = "#BB86FC";
-  } else if (type === "DELEGATECALL") {
-    colorType = "#8A80FF";
-  } else if (type === "STATICCALL") {
-    colorType = "#03DAC6";
+  // Black by default
+  let colorType = "#000";
+  if (type === "CALL" || type === "DELEGATECALL" || type === "STATICCALL") {
+    colorType = "#29BC9B";
   } else if (type === "CREATE" || type === "CREATE2") {
-    colorType = "#018786";
+    colorType = "#F5A623";
   } else if (type === "SSTORE" || type === "SLOAD") {
-    colorType = "#FAA356";
+    colorType = "#AB570A";
   } else if (type.startsWith("LOG")) {
-    colorType = "#A2D2FB";
+    colorType = "#EB367F";
   }
 
+  // So terribly hacky but whatever
+  // const [modalOpened, setModalOpened] = useState(false)
+
   if (type === "SSTORE") {
-    if (verbose === false) return <></>;
+    if (displayVerbose === false) return <></>;
 
     return (
-      <li key={`${JSON.stringify(stackTrace)}`}>
+      <li>
         <span style={{ color: colorType }}>[{type}]</span>
         {`${slot}::${before} -> ${after}`}
       </li>
@@ -142,47 +148,51 @@ function TraceViewer(stackTrace, verbose = false) {
 
   if (type.startsWith("LOG")) {
     return (
-      <li key={`${JSON.stringify(stackTrace)}`}>
-        <span style={{ color: colorType }}>[{type}]</span>
+      <li>
+        <span style={{ color: colorType }}>[LOG]</span>
         {prettyLog || `[${topics[0]}](${topics.slice(1).join(",")})::${data}`}
       </li>
     );
   }
 
   return (
-    <li key={`${type}-${isNaN(prettyGas) ? "0" : prettyGas.toString()}`}>
+    <li>
       <details open>
         <summary>
           <span
             onClick={(e) => {
               e.preventDefault();
+              setModalOpened(!modalOpened);
             }}
             style={{ color: colorType }}
           >
             [{type}]
           </span>
           {prettyValueStr}
-          {prettyAddress || to}::{prettyInput || input}
+          <a href={`https://etherscan.io/address/${to}`}>
+            {prettyAddress || to}
+          </a>
+          ::{prettyInput || input}
         </summary>
         <ul>
           {(calls || []).length > 0 &&
-            calls.map((x) => TraceViewer(x, verbose))}
-          {output !== undefined && (
-            <li key={`return-${parseInt(gas, 16).toString()}`}>
-              return {prettyOutput || output}
-            </li>
-          )}
+            calls.map((x) =>
+              TraceViewer({
+                executionTrace: x,
+                setModalData,
+                setModalOpened,
+                modalOpened,
+                displayVerbose,
+              })
+            )}
+          {output !== undefined && <li>return {prettyOutput || output}</li>}
           {
             // Sending ETH doesn't return value it seems
-            output === undefined && error === undefined && (
-              <li key={`return-${type}-${parseInt(gas, 16).toString()}`}>
-                return [0x]
-              </li>
-            )
+            output === undefined && error === undefined && <li>return [0x]</li>
           }
           {error !== undefined && (
-            <li key={`revert-${type}-${parseInt(gas, 16).toString()}`}>
-              reverted [{error}]
+            <li>
+              <span style={{ color: "#EB367F" }}>[REVERTED]</span> [{error}]
             </li>
           )}
         </ul>
@@ -192,7 +202,7 @@ function TraceViewer(stackTrace, verbose = false) {
 }
 
 // Make the contract traces readable
-function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
+function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
   let prettyInput = null;
   let prettyAddress = null;
   let prettyOutput = null;
@@ -201,10 +211,10 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
 
   // Logs
   try {
-    if (stackTrace.topics) {
+    if (executionTrace.topics) {
       const logDescription = decoder.parseLog({
-        topics: stackTrace.topics,
-        data: stackTrace.data,
+        topics: executionTrace.topics,
+        data: executionTrace.data,
       });
 
       const logParams = logDescription.eventFragment.inputs
@@ -231,7 +241,9 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
 
   // Description and result
   try {
-    const txDescription = decoder.parseTransaction({ data: stackTrace.input });
+    const txDescription = decoder.parseTransaction({
+      data: executionTrace.input,
+    });
     const txParams = txDescription.functionFragment.inputs
       .map((x) => x.name)
       .filter((x) => x !== null);
@@ -257,7 +269,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
 
     const resultDescription = decoder.decodeFunctionResult(
       txDescription.name,
-      stackTrace.output
+      executionTrace.output
     );
     const resultParamInfo = decoder
       .getFunction(txDescription.name)
@@ -279,14 +291,14 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
 
   try {
     // If theres an address inside
-    if (!!knownContractAddresses[stackTrace.to.toLowerCase()]) {
-      prettyAddress = knownContractAddresses[stackTrace.to.toLowerCase()];
+    if (!!knownContractAddresses[executionTrace.to.toLowerCase()]) {
+      prettyAddress = knownContractAddresses[executionTrace.to.toLowerCase()];
     }
   } catch (e) {}
 
-  if (stackTrace.value) {
+  if (executionTrace.value) {
     try {
-      const bn = ethers.BigNumber.from(stackTrace.value);
+      const bn = ethers.BigNumber.from(executionTrace.value);
       if (bn.gt(ethers.constants.Zero)) {
         prettyValue = bn;
       }
@@ -294,13 +306,13 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
   }
 
   return {
-    ...stackTrace,
+    ...executionTrace,
     prettyValue,
     prettyAddress,
     prettyInput,
     prettyOutput,
     prettyLog,
-    calls: (stackTrace.calls || []).map((x) =>
+    calls: (executionTrace.calls || []).map((x) =>
       formatExecutionTrace(decoder, knownContractAddresses, x)
     ),
   };
@@ -309,6 +321,12 @@ function formatExecutionTrace(decoder, knownContractAddresses, stackTrace) {
 export const TracePage = () => {
   const { txhash } = useParams();
 
+  // SO fucking hacky but whatever
+  // passing these as references
+  const [modalData, setModalData] = useState(null);
+  const [modalOpened, setModalOpened] = useState(false);
+
+  // Stuff to decode the execution trace
   const [ifaceDecoder, setIFaceDecoder] = useState(null);
   const [knownContractAddresses, setKnownContractAddresses] = useLocalStorage(
     "contractAddresses",
@@ -415,7 +433,6 @@ export const TracePage = () => {
             }
             return name;
           })
-          .filter((x) => x !== null);
 
         // Extract out ABI if they exist
         const abisFromEtherscan = addressesSourceCode
@@ -517,31 +534,52 @@ export const TracePage = () => {
   ]);
 
   return (
-    <GenericPage>
-      <Text h4>
-        Execution Trace&nbsp;&nbsp;
-        <Checkbox
-          checked={displayVerbose}
-          onChange={(e) => {
-            setDisplayVerbose(e.target.checked);
-          }}
-        >
-          Verbose
-        </Checkbox>
-      </Text>
-      {executionTrace === null && invalidTxHash && (
-        <Text h2>Invalid txhash</Text>
-      )}
-      {executionTrace !== null && (
-        <ul className="tree">
-          <li key="root">
-            <details open>
-              <summary>[Sender]{executionTrace.from}</summary>
-              <ul>{TraceViewer(executionTrace, displayVerbose)}</ul>
-            </details>
-          </li>
-        </ul>
-      )}
-    </GenericPage>
+    <>
+      <Modal visible={modalOpened} onClose={() => setModalOpened(false)}>
+        <Modal.Title>Modal</Modal.Title>
+        <Modal.Subtitle>This is a modal</Modal.Subtitle>
+        <Modal.Content>
+          <p>Some content contained within the modal.</p>
+        </Modal.Content>
+        <Modal.Action passive onClick={() => setModalOpened(false)}>
+          Exit
+        </Modal.Action>
+      </Modal>
+      <GenericPage>
+        <Text h4>
+          Execution Trace&nbsp;&nbsp;
+          <Checkbox
+            checked={displayVerbose}
+            onChange={(e) => {
+              setDisplayVerbose(e.target.checked);
+            }}
+          >
+            Verbose
+          </Checkbox>
+        </Text>
+        {executionTrace === null && invalidTxHash && (
+          <Text h2>Invalid txhash</Text>
+        )}
+        {executionTrace !== null && (
+          <ul className="tree">
+            <li key="root">
+              <details open>
+                <summary>[Sender]{executionTrace.from}</summary>
+                <ul>
+                  {TraceViewer({
+                    modalOpened,
+                    setModalOpened,
+                    modalData,
+                    setModalData,
+                    executionTrace,
+                    displayVerbose,
+                  })}
+                </ul>
+              </details>
+            </li>
+          </ul>
+        )}
+      </GenericPage>
+    </>
   );
 };
