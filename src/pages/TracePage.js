@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { ABIS } from "../common/abis";
 
-import { Checkbox, Modal, Text } from "@geist-ui/react";
+import { Checkbox, Modal, Text, Code } from "@geist-ui/react";
 import { sleep, truncate } from "../common/utils";
 
 import "./treeList.css";
@@ -163,6 +163,7 @@ function TraceViewer({
             onClick={(e) => {
               e.preventDefault();
               setModalOpened(!modalOpened);
+              setModalData(executionTrace);
             }}
             style={{ color: colorType }}
           >
@@ -209,6 +210,9 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
   let prettyValue = null;
   let prettyLog = null;
 
+  let logFragment = null;
+  let funcFragment = null;
+
   // Logs
   try {
     if (executionTrace.topics) {
@@ -236,6 +240,8 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
           logParams.args.map((x) => x.toString()) +
           ")";
       }
+
+      logFragment = logDescription;
     }
   } catch (e) {}
 
@@ -287,6 +293,8 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
     } else {
       prettyOutput = "(" + resultDescription.map((x) => x.toString()) + ")";
     }
+
+    funcFragment = txDescription;
   } catch (e) {}
 
   try {
@@ -312,6 +320,8 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
     prettyInput,
     prettyOutput,
     prettyLog,
+    logFragment,
+    funcFragment,
     calls: (executionTrace.calls || []).map((x) =>
       formatExecutionTrace(decoder, knownContractAddresses, x)
     ),
@@ -323,6 +333,7 @@ export const TracePage = () => {
 
   // SO fucking hacky but whatever
   // passing these as references
+  // modalData will be the same as executionTrace
   const [modalData, setModalData] = useState(null);
   const [modalOpened, setModalOpened] = useState(false);
 
@@ -422,17 +433,16 @@ export const TracePage = () => {
         }
 
         // Extract out source code name (very hacky yes)
-        const addressesNames = addressesSourceCode
-          .map((x) => {
-            let name = null;
-            try {
-              name = x.result[0]["ContractName"];
-            } catch (e) {}
-            if (name === "") {
-              name = null;
-            }
-            return name;
-          })
+        const addressesNames = addressesSourceCode.map((x) => {
+          let name = null;
+          try {
+            name = x.result[0]["ContractName"];
+          } catch (e) {}
+          if (name === "") {
+            name = null;
+          }
+          return name;
+        });
 
         // Extract out ABI if they exist
         const abisFromEtherscan = addressesSourceCode
@@ -533,13 +543,54 @@ export const TracePage = () => {
     executionTrace,
   ]);
 
+  // Modal data dump
+  // very bad but whatever
+  let modalTitle = "";
+  let modalInput = "";
+  let modalOutput = "";
+  if (modalData) {
+    // Modal Title
+    if (modalData.prettyAddress) {
+      modalTitle = modalData.prettyAddress;
+    } else {
+      modalTitle = modalData.to.slice(0, 6) + "..." + modalData.to.slice(-4);
+    }
+    if (modalData.prettyInput) {
+      modalTitle += "." + modalData.prettyInput.split("(")[0];
+    } else {
+      modalTitle += "::" + modalData.input.slice(0, 10);
+    }
+
+    console.log("modalData", modalData);
+  }
+
   return (
     <>
-      <Modal visible={modalOpened} onClose={() => setModalOpened(false)}>
-        <Modal.Title>Modal</Modal.Title>
-        <Modal.Subtitle>This is a modal</Modal.Subtitle>
+      <Modal
+        width={"650px"}
+        visible={modalOpened}
+        onClose={() => setModalOpened(false)}
+      >
         <Modal.Content>
-          <p>Some content contained within the modal.</p>
+          {modalData && (
+            <Text font="12px" type="secondary">
+              <a href={`https://etherscan.io/address/${modalData.to || ""}`}>
+                {modalTitle}
+              </a>
+            </Text>
+          )}
+          {modalData && modalData.input && (
+            <>
+              <Text>Input</Text>
+              <Code block my={0}>
+                {modalData.input}
+              </Code>
+              <Text>Output</Text>
+              <Code block my={0}>
+                {modalData.output || "0x"}
+              </Code>
+            </>
+          )}
         </Modal.Content>
         <Modal.Action passive onClick={() => setModalOpened(false)}>
           Exit
