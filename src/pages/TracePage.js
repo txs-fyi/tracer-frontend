@@ -6,7 +6,7 @@ import { useParams } from "react-router-dom";
 import { ABIS } from "../common/abis";
 
 import { Checkbox, Modal, Text, Code } from "@geist-ui/react";
-import { shortAddress, sleep, truncate } from "../common/utils";
+import { shortAddress, sleep, truncate, stringify } from "../common/utils";
 
 import "./treeList.css";
 
@@ -235,6 +235,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
 
   let logFragment = null;
   let funcFragment = null;
+  let resFragment = null;
 
   // Logs
   try {
@@ -260,7 +261,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
         prettyLog =
           logDescription.name +
           "(" +
-          logParams.args.map((x) => x.toString()) +
+          logParams.args.map((x) => stringify(x)) +
           ")";
       }
 
@@ -285,14 +286,14 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
       prettyInput =
         txDescription.name +
         "(" +
-        txArgs.map((x, idx) => txParams[idx] + "=" + txArgs[idx]) +
+        txArgs.map((x, idx) => txParams[idx] + "=" + stringify(txArgs[idx])) +
         ")";
     } else {
       // Otherwise no params
       prettyInput =
         txDescription.name +
         "(" +
-        txDescription.args.map((x) => x.toString()) +
+        txDescription.args.map((x) => stringify(x)) +
         ")";
     }
 
@@ -310,14 +311,19 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
       prettyOutput =
         "(" +
         resultParamInfo.map(
-          (x, idx) => resultParamInfo[idx] + "=" + resultDescription[idx]
+          (x, idx) =>
+            resultParamInfo[idx] + "=" + stringify(resultDescription[idx])
         ) +
         ")";
     } else {
-      prettyOutput = "(" + resultDescription.map((x) => x.toString()) + ")";
+      prettyOutput = "(" + resultDescription.map((x) => stringify(x)) + ")";
     }
 
     funcFragment = txDescription;
+    resFragment = {
+      result: resultDescription,
+      info: resultParamInfo,
+    };
   } catch (e) {}
 
   // Address -> Contract names
@@ -360,6 +366,7 @@ function formatExecutionTrace(decoder, knownContractAddresses, executionTrace) {
     prettyError,
     logFragment,
     funcFragment,
+    resFragment,
     calls: (executionTrace.calls || []).map((x) =>
       formatExecutionTrace(decoder, knownContractAddresses, x)
     ),
@@ -592,6 +599,7 @@ export const TracePage = () => {
         modalTitle += "::" + modalData.input.slice(0, 10);
       }
     }
+    console.log(modalData);
   }
 
   return (
@@ -641,7 +649,9 @@ export const TracePage = () => {
                 </Code>
                 {modalData.logFragment && (
                   <>
-                    <Text>Decoded Log: {modalData.logFragment.name}</Text>
+                    <Text>
+                      Decoded Log: <Code>{modalData.logFragment.name}</Code>
+                    </Text>
                     <Code block>
                       {modalData.logFragment.args
                         .map((x, idx) => {
@@ -654,8 +664,8 @@ export const TracePage = () => {
                           const value = modalData.logFragment.args[idx];
 
                           return key !== undefined && key !== null && key !== ""
-                            ? `${key}: ${value.toString()}`
-                            : value.toString();
+                            ? `${key}: ${stringify(value)}`
+                            : stringify(value);
                         })
                         .join("\n")}
                     </Code>
@@ -673,6 +683,50 @@ export const TracePage = () => {
               <Code block my={0}>
                 {modalData.output || "0x"}
               </Code>
+              {modalData.funcFragment &&
+                modalData.funcFragment.args.length > 0 && (
+                  <>
+                    <Text>Decoded Input</Text>
+                    <Code block>
+                      {modalData.funcFragment.args
+                        .map((x, idx) => {
+                          let key = null;
+                          try {
+                            key =
+                              modalData.funcFragment.functionFragment.inputs[
+                                idx
+                              ].name;
+                          } catch (e) {}
+                          const value = modalData.funcFragment.args[idx];
+
+                          return key !== undefined && key !== null && key !== ""
+                            ? `${key}: ${stringify(value)}`
+                            : stringify(value);
+                        })
+                        .join("\n")}
+                    </Code>
+                  </>
+                )}
+              {modalData.resFragment && (
+                <>
+                  <Text>Decoded Output</Text>
+                  <Code block>
+                    {modalData.resFragment.result
+                      .map((x, idx) => {
+                        let key = null;
+                        try {
+                          key = modalData.resFragment.info[idx];
+                        } catch (e) {}
+                        const value = modalData.resFragment.result[idx];
+
+                        return key !== undefined && key !== null && key !== ""
+                          ? `${key}: ${stringify(value)}`
+                          : stringify(value);
+                      })
+                      .join("\n")}
+                  </Code>
+                </>
+              )}
             </>
           )}
         </Modal.Content>
