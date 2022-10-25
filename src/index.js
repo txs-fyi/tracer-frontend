@@ -16,7 +16,7 @@ const EthereumMainnetComponent = GetTracePage(
   "https://etherscan.io",
   (address) =>
     `https://api.etherscan.io/api?module=contract&action=getsourcecode&address=${address}&apikey=CAXVKF8PKZ3GV79PYYNPTUQ2J1TVKRPP51`,
-  (txHash) => `http://localhost:3001/eth/${txHash}?executionTrace=true`
+  (txHash) => `http://34.207.165.241/eth/${txHash}?executionTrace=true`
 );
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
