@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import { HomePage } from "./pages/HomePage";
-import { TracePage } from "./pages/TracePage";
+import { GetTracePage } from "./pages/TracePage";
 import reportWebVitals from "./reportWebVitals";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { GeistProvider, CssBaseline } from "@geist-ui/core";
@@ -12,18 +12,25 @@ import "@fontsource/roboto/400.css";
 import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 
+const EthereumMainnetComponent = GetTracePage(
+  "https://etherscan.io",
+  (address) =>
+    `https://api.etherscan.io/api?module=contract&action=getsourcecode&address=${address}&apikey=CAXVKF8PKZ3GV79PYYNPTUQ2J1TVKRPP51`,
+  (txHash) => `http://localhost:3001/eth/${txHash}?executionTrace=true`
+);
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   // <React.StrictMode>
-    <GeistProvider themeType="light">
-      <CssBaseline />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="tx/:txhash" element={<TracePage />} />
-        </Routes>
-      </BrowserRouter>
-    </GeistProvider>
+  <GeistProvider themeType="light">
+    <CssBaseline />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="eth/:txhash" element={<EthereumMainnetComponent />} />
+      </Routes>
+    </BrowserRouter>
+  </GeistProvider>
   // </React.StrictMode>
 );
 
