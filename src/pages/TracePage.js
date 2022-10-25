@@ -620,7 +620,6 @@ export const GetTracePage = (explorerUrl, getEtherscanApiUrl, getPepeyaUrl) => {
           modalTitle += "::" + modalData.input.slice(0, 10);
         }
       }
-      console.log(modalData);
     }
 
     return (

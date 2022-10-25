@@ -1,5 +1,6 @@
 import React from "react";
-import { Page, Text } from "@geist-ui/react";
+import { Page, Text, Link } from "@geist-ui/react";
+import { Github } from "@geist-ui/icons";
 import logo from "../logo.png";
 
 export const GenericPage = (props) => {
@@ -25,6 +26,13 @@ export const GenericPage = (props) => {
         </div>
       </Page.Header>
       <Page.Content>{props.children}</Page.Content>
+      <Page.Footer>
+        <div style={{ float: "right" }}>
+          <Link href="https://github.com/txs-fyi/tracer-frontend">
+            <Github />
+          </Link>
+        </div>
+      </Page.Footer>
     </Page>
   );
 };
